@@ -1,0 +1,6 @@
+[submodule "pi/piserver"]
+	path = pi/piserver
+	url = git@github.com:gagregrog/piserver.git
+[submodule "esp32/arrow-controller"]
+	path = esp32/arrow-controller
+	url = git@github.com:gagregrog/arrow-controller.git

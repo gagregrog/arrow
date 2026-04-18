@@ -53,6 +53,12 @@ Install guide: https://docs.mopidy.com/stable/installation/debian/#debian-instal
 sudo apt install python3-pip
 ```
 
+Install GStreamer plugins required for AAC playback:
+
+```sh
+sudo apt install gstreamer1.0-plugins-bad gstreamer1.0-libav
+```
+
 Configure ALSA audio output in `/etc/mopidy/mopidy.conf`:
 
 ```ini

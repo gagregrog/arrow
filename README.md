@@ -162,7 +162,7 @@ See [`esp32/arrow-controller`](esp32/arrow-controller) for firmware setup and fl
 
 ### Stereo Control
 
-The system includes IR blaster integration for controlling a physical stereo receiver:
+The system includes IR blaster and receiver integration for controlling a physical stereo receiver:
 
 - **Power** — on/off toggling, with a photoresistor to detect current power state
 - **Volume** — IR volume commands
@@ -190,3 +190,23 @@ sudo reboot
 The `--all` flag removes the module from all kernels and clears the DKMS source tree, forcing a genuinely clean rebuild on reinstall.
 
 **Verify** the HAT is back with `aplay -l` — you should see the `wm8960-soundcard` device listed.
+
+### WM8960 audio HAT disappears after reading IR codes
+
+**Symptom:** Same as above — audio stops working after running `ir-keytable -p sony` and rebooting.
+
+**Cause:** `ir-keytable -p sony` writes to the RC device's sysfs `protocols` file, which fires a udev event. The Pi OS `ir-keytable` udev rules persist this change, and the altered protocol state at next boot interferes with how `rc-core` initializes — which cascades into the WM8960 DKMS driver failing to probe.
+
+**Prevention:** Always restore the default protocol after reading codes. `make read-sony` does this automatically via a `trap` in `scripts/read-sony.sh`. If you run `ir-keytable` manually, restore afterward:
+
+```sh
+sudo ir-keytable -s rc1 -p rc-6   # substitute your actual rcX
+```
+
+**Fix (if it already broke):** Same DKMS teardown as above:
+
+```sh
+sudo dkms remove wm8960-soundcard/1.0 --all
+cd ~/WM8960-Audio-HAT && sudo ./install.sh
+sudo reboot
+```

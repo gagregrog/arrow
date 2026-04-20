@@ -167,3 +167,26 @@ The system includes IR blaster integration for controlling a physical stereo rec
 - **Power** — on/off toggling, with a photoresistor to detect current power state
 - **Volume** — IR volume commands
 - **Input select** — switch the receiver's input source
+
+---
+
+## Troubleshooting
+
+### WM8960 audio HAT disappears after a kernel update
+
+**Symptom:** `aplay -l` no longer shows the WM8960 device. Mopidy logs show `GStreamer error: Could not open audio device for playback`.
+
+**Cause:** The Waveshare WM8960 driver is installed as an out-of-tree DKMS module. When the Pi OS installs a new kernel (e.g. after `apt upgrade`) and you reboot, the DKMS module can end up in a stale or partially-built state. The install script's built-in remove step doesn't always clean up thoroughly enough to fix this.
+
+**Fix:** Do a full DKMS teardown before reinstalling:
+
+```sh
+sudo dkms remove wm8960-soundcard/1.0 --all
+cd ~/WM8960-Audio-HAT
+sudo ./install.sh
+sudo reboot
+```
+
+The `--all` flag removes the module from all kernels and clears the DKMS source tree, forcing a genuinely clean rebuild on reinstall.
+
+**Verify** the HAT is back with `aplay -l` — you should see the `wm8960-soundcard` device listed.

@@ -172,41 +172,48 @@ The system includes IR blaster and receiver integration for controlling a physic
 
 ## Troubleshooting
 
-### WM8960 audio HAT disappears after a kernel update
+### WM8960 audio HAT not working
 
-**Symptom:** `aplay -l` no longer shows the WM8960 device. Mopidy logs show `GStreamer error: Could not open audio device for playback`.
+**Symptom:** `aplay -l` doesn't show the WM8960 device, or it shows but Mopidy logs `GStreamer error: Could not open audio device for playback`.
 
-**Cause:** The Waveshare WM8960 driver is installed as an out-of-tree DKMS module. When the Pi OS installs a new kernel (e.g. after `apt upgrade`) and you reboot, the DKMS module can end up in a stale or partially-built state. The install script's built-in remove step doesn't always clean up thoroughly enough to fix this.
+**How the HAT is supposed to work:** The `wm8960-soundcard` systemd service is responsible for everything beyond installing the driver. It waits for the WM8960 chip to appear on I2C, loads the overlay, symlinks Waveshare's ALSA config into place, and runs `alsactl restore` to configure the codec's internal mixer. Without the service, the device may appear in `aplay -l` but audio won't actually work.
 
-**Fix:** Do a full DKMS teardown before reinstalling:
+**Two things must be true for this to work correctly:**
 
-```sh
-sudo dkms remove wm8960-soundcard/1.0 --all
-cd ~/WM8960-Audio-HAT
-sudo ./install.sh
-sudo reboot
-```
+1. `dtoverlay=wm8960-soundcard` must **not** be in `/boot/firmware/config.txt` — the service handles loading the overlay. Having it in both places causes the overlay to load twice, which produces `asoc-simple-card already registered` in dmesg and breaks the WM8960 probe.
 
-The `--all` flag removes the module from all kernels and clears the DKMS source tree, forcing a genuinely clean rebuild on reinstall.
+2. The `wm8960-soundcard` service must be enabled and running.
 
-**Verify** the HAT is back with `aplay -l` — you should see the `wm8960-soundcard` device listed.
-
-### WM8960 audio HAT disappears after reading IR codes
-
-**Symptom:** Same as above — audio stops working after running `ir-keytable -p sony` and rebooting.
-
-**Cause:** `ir-keytable -p sony` writes to the RC device's sysfs `protocols` file, which fires a udev event. The Pi OS `ir-keytable` udev rules persist this change, and the altered protocol state at next boot interferes with how `rc-core` initializes — which cascades into the WM8960 DKMS driver failing to probe.
-
-**Prevention:** Always restore the default protocol after reading codes. `make read-sony` does this automatically via a `trap` in `scripts/read-sony.sh`. If you run `ir-keytable` manually, restore afterward:
-
-```sh
-sudo ir-keytable -s rc1 -p rc-6   # substitute your actual rcX
-```
-
-**Fix (if it already broke):** Same DKMS teardown as above:
+**On kernel 6.12+:** The Waveshare DKMS module conflicts with the in-tree drivers that the mainline kernel now includes. Remove it and do not reinstall:
 
 ```sh
 sudo dkms remove wm8960-soundcard/1.0 --all
-cd ~/WM8960-Audio-HAT && sudo ./install.sh
+```
+
+**Diagnostic checklist:**
+
+```sh
+# Is the overlay in config.txt? (it should not be)
+grep wm8960 /boot/firmware/config.txt
+
+# Is the DKMS module installed? (it should not be on kernel 6.12+)
+dkms status
+
+# Is the service enabled and running?
+sudo systemctl status wm8960-soundcard
+```
+
+**Fix:**
+
+```sh
+# Remove DKMS module if present
+sudo dkms remove wm8960-soundcard/1.0 --all 2>/dev/null || true
+
+# Ensure service is enabled
+sudo systemctl enable wm8960-soundcard
+
+# Remove dtoverlay=wm8960-soundcard from config.txt if present
+sudo nano /boot/firmware/config.txt
+
 sudo reboot
 ```
